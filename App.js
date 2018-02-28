@@ -1,9 +1,10 @@
 import React from 'react';
 import { Image, StyleSheet, Text, View, FlatList, TouchableOpacity, Linking } from 'react-native';
 import { Constants, MapView } from 'expo';
-import Dimensions from 'Dimensions';
-import emoji from './emoji';
 import { Ionicons } from '@expo/vector-icons';
+import Dimensions from 'Dimensions';
+import { Svg } from 'expo'
+import Emoji from 'react-native-emoji';
 
 const { height, width } = Dimensions.get('window');
 const PULLOUT_HEIGHT = height * 0.5;
@@ -19,7 +20,8 @@ export default class App extends React.Component {
       latitudeDelta: 0.0922,
       longitudeDelta: 0.0421
     },
-    entries: []
+    entries: [],
+    selectedEntries: []
   }
 
   render() {
@@ -28,26 +30,31 @@ export default class App extends React.Component {
         <View style={{ backgroundColor: '#faebd7', height: Constants.statusBarHeight }} />
         <MapView
           onPress={this.handlePressMap}
-          provider="google"
           style={{ flex: 1 }}
-          region={this.state.region}
+          initialRegion={this.state.region}
         >
-          <MapView.Marker coordinate={{ latitude: 39.90122, longitude: -75.172 }} onPress={this.openPulloutMenu}>
-            <View style={{ flex: 1, flexDirection: 'column' }}>
-              <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 15, height: 40, width: 40, justifyContent: 'center', alignItems: 'center', shadowOffset: {  width: 2,  height: 2 }, shadowColor: '#000', shadowOpacity: 1.0, }}>
-                <Image source={emoji.hockey} style={{ height: 20, width: 20 }} />
-              </View>
-              <View style={{ flex: 1, backgroundColor: 'transparent', width: 0, height: 0, alignSelf:'center', borderStyle: 'solid', borderTopColor: '#fff', borderTopWidth:10, borderLeftWidth:5, borderLeftColor: 'transparent', borderRightWidth:5, borderRightColor: 'transparent' }} />
-            </View>
-          </MapView.Marker>
+          {this.state.entries.map(this.renderMapMarker, this)}
         </MapView>
         <View style={{ flex: 1, position: 'absolute', height: PULLOUT_HEIGHT, width, backgroundColor: '#fff', top: this.state.pulloutTop, flexDirection: 'column', borderTopColor: 'black', borderTopWidth: 1 }}>
-          <FlatList data={this.state.entries} renderItem={this.renderEntry} />
+          <FlatList data={this.state.selectedEntries} renderItem={this.renderEntry} />
           <View style={{ height: 50, backgroundColor: '#dcd8ef', alignItems: 'center', justifyContent: 'center' }}>
             <TouchableOpacity activeOpacity={0} onPress={this.closePulloutMenu}><Ionicons name="ios-close" size={44} /></TouchableOpacity>
           </View>
         </View>
       </View>
+    );
+  }
+
+  renderMapMarker = entry => {
+    return (
+      <MapView.Marker key={entry.link} centerOffset={{x: 0, y: -20}} coordinate={entry.coordinates} onPress={this.handlePressMapMarker.bind(this, entry)}>
+        <View style={{ flex: 1, flexDirection: 'column' }}>
+          <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 15, height: 40, width: 40, justifyContent: 'center', alignItems: 'center', shadowOffset: {  width: 2,  height: 2 }, shadowColor: '#000', shadowOpacity: 1.0, }}>
+            <Text fontSize={20}><Emoji name={entry.emoji} /></Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: 'transparent', width: 0, height: 0, alignSelf:'center', borderStyle: 'solid', borderTopColor: '#fff', borderTopWidth:10, borderLeftWidth:5, borderLeftColor: 'transparent', borderRightWidth:5, borderRightColor: 'transparent' }} />
+        </View>
+      </MapView.Marker>
     );
   }
 
@@ -63,6 +70,11 @@ export default class App extends React.Component {
         </View>
       </TouchableOpacity>
     );
+  }
+
+  handlePressMapMarker = entry => {
+    this.setState({ selectedEntries: this.state.entries.filter(e => e.coordinates.latitude == entry.coordinates.latitude && e.coordinates.longitude === entry.coordinates.longitude) }, this.openPulloutMenu);
+
   }
 
   handleLink = entry => {
@@ -88,7 +100,7 @@ export default class App extends React.Component {
         longitudeDelta: 0.0421
       }
     });
-    fetch('http://108.4.246.231:3000/news')
+    fetch('http://108.4.212.129:4000/feed')
       .then(res => res.json())
       .then(json => this.setState({ entries: json.entries.map(entry => ({ ...entry, key: entry.link })) }))
       .catch(e => console.log(e.message));
