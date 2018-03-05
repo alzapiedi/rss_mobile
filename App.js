@@ -35,7 +35,7 @@ export default class App extends React.Component {
           ref={element => this.mapView = element}
           onPress={this.handlePressMap}
           style={{ flex: 1 }}
-          provider=``"google"
+          provider="google"
           region={this.state.region}
           onRegionChange={this.onRegionChange}>
             {this.getMarkers().map(this.renderMapMarker, this)}
