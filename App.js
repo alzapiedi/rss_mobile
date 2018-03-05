@@ -4,14 +4,17 @@ import { Constants, MapView } from 'expo';
 import { Ionicons } from '@expo/vector-icons';
 import Dimensions from 'Dimensions';
 import { Svg } from 'expo'
-import Emoji from 'react-native-emoji';
+import Emoji from './Emoji';
+import supercluster from 'supercluster';
 
 const { height, width } = Dimensions.get('window');
+const API_BASE_URL='http://108.4.212.129:4000';
 const PULLOUT_HEIGHT = height * 0.5;
 const PULLOUT_DELTA = PULLOUT_HEIGHT / 10;
 
 export default class App extends React.Component {
   state = {
+    mapReady: false,
     pulloutTop: height,
     isTransitioning: false,
     region: {
@@ -29,11 +32,13 @@ export default class App extends React.Component {
       <View style={{ flex: 1 }}>
         <View style={{ backgroundColor: '#faebd7', height: Constants.statusBarHeight }} />
         <MapView
+          ref={element => this.mapView = element}
           onPress={this.handlePressMap}
           style={{ flex: 1 }}
-          initialRegion={this.state.region}
-        >
-          {this.state.entries.map(this.renderMapMarker, this)}
+          provider=``"google"
+          region={this.state.region}
+          onRegionChange={this.onRegionChange}>
+            {this.getMarkers().map(this.renderMapMarker, this)}
         </MapView>
         <View style={{ flex: 1, position: 'absolute', height: PULLOUT_HEIGHT, width, backgroundColor: '#fff', top: this.state.pulloutTop, flexDirection: 'column', borderTopColor: 'black', borderTopWidth: 1 }}>
           <FlatList data={this.state.selectedEntries} renderItem={this.renderEntry} />
@@ -72,6 +77,10 @@ export default class App extends React.Component {
     );
   }
 
+  onRegionChange = region => {
+    this.setState({ region });
+  }
+
   handlePressMapMarker = entry => {
     this.setState({ selectedEntries: this.state.entries.filter(e => e.coordinates.latitude == entry.coordinates.latitude && e.coordinates.longitude === entry.coordinates.longitude) }, this.openPulloutMenu);
 
@@ -91,7 +100,36 @@ export default class App extends React.Component {
     this.closePulloutMenu();
   }
 
+  loadClusters = () => {
+    this.clusters = supercluster({
+      radius: 40,
+      maxZoom: 16
+    });
+    this.clusters.load(this.getPoints());
+  }
+
+  getMarkers() {
+    const { latitude, longitude, latitudeDelta, longitudeDelta } = this.state.region;
+    if (!this.clusters) return [];
+    const result = this.clusters.getClusters(
+      [longitude - longitudeDelta, latitude - latitudeDelta, longitude + longitudeDelta, latitude + latitudeDelta],
+      this.getZoom()
+    );
+    console.log(this.getZoom());
+    console.log(result);
+    return result;
+  }
+
+  getPoints() {
+    return this.state.entries.map(entry => [entry.coordinates.latitude, entry.coordinates.longitude]);
+  }
+
+  getZoom = () => {
+    return Math.round(1 / this.state.region.latitudeDelta);
+  }
+
   componentDidMount() {
+    console.log('mounted')
     this.setState({ region:
       {
         latitude: 39.952,
@@ -100,9 +138,9 @@ export default class App extends React.Component {
         longitudeDelta: 0.0421
       }
     });
-    fetch('http://108.4.212.129:4000/feed')
+    fetch(API_BASE_URL + '/feed')
       .then(res => res.json())
-      .then(json => this.setState({ entries: json.entries.map(entry => ({ ...entry, key: entry.link })) }))
+      .then(json => this.setState({ entries: json.entries.map(entry => ({ ...entry, key: entry.link })) }, this.loadClusters))
       .catch(e => console.log(e.message));
   }
 
