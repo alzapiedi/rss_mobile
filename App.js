@@ -4,8 +4,10 @@ import { Constants, MapView } from 'expo';
 import { Ionicons } from '@expo/vector-icons';
 import Dimensions from 'Dimensions';
 import { Svg } from 'expo'
+import Map from './Map';
 import Emoji from './Emoji';
 import supercluster from 'supercluster';
+import debounce from 'lodash.debounce';
 
 const { height, width } = Dimensions.get('window');
 const API_BASE_URL='http://108.4.212.129:4000';
@@ -28,18 +30,17 @@ export default class App extends React.Component {
   }
 
   render() {
+    console.log('#render')
     return (
       <View style={{ flex: 1 }}>
         <View style={{ backgroundColor: '#faebd7', height: Constants.statusBarHeight }} />
-        <MapView
+        <Map
           ref={element => this.mapView = element}
           onPress={this.handlePressMap}
-          style={{ flex: 1 }}
-          provider="google"
           region={this.state.region}
-          onRegionChange={this.onRegionChange}>
-            {this.getMarkers().map(this.renderMapMarker, this)}
-        </MapView>
+          onRegionChange={this.onRegionChange}
+          renderMarker={this.renderMapMarker}
+          markers={this.getMarkers()} />
         <View style={{ flex: 1, position: 'absolute', height: PULLOUT_HEIGHT, width, backgroundColor: '#fff', top: this.state.pulloutTop, flexDirection: 'column', borderTopColor: 'black', borderTopWidth: 1 }}>
           <FlatList data={this.state.selectedEntries} renderItem={this.renderEntry} />
           <View style={{ height: 50, backgroundColor: '#dcd8ef', alignItems: 'center', justifyContent: 'center' }}>
@@ -52,10 +53,10 @@ export default class App extends React.Component {
 
   renderMapMarker = entry => {
     return (
-      <MapView.Marker key={entry.link} centerOffset={{x: 0, y: -20}} coordinate={entry.coordinates} onPress={this.handlePressMapMarker.bind(this, entry)}>
+      <MapView.Marker key={String(Math.random())} centerOffset={{x: 0, y: -20}} coordinate={this.coordinateArrayToObject(entry.geometry.coordinates)} onPress={this.handlePressMapMarker.bind(this, entry)}>
         <View style={{ flex: 1, flexDirection: 'column' }}>
           <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 15, height: 40, width: 40, justifyContent: 'center', alignItems: 'center', shadowOffset: {  width: 2,  height: 2 }, shadowColor: '#000', shadowOpacity: 1.0, }}>
-            <Text fontSize={20}><Emoji name={entry.emoji} /></Text>
+            <Text fontSize={20}><Emoji name="chocolate_bar" /></Text>
           </View>
           <View style={{ flex: 1, backgroundColor: 'transparent', width: 0, height: 0, alignSelf:'center', borderStyle: 'solid', borderTopColor: '#fff', borderTopWidth:10, borderLeftWidth:5, borderLeftColor: 'transparent', borderRightWidth:5, borderRightColor: 'transparent' }} />
         </View>
@@ -75,6 +76,13 @@ export default class App extends React.Component {
         </View>
       </TouchableOpacity>
     );
+  }
+
+  coordinateArrayToObject(array) {
+    return {
+      latitude: array[1],
+      longitude: array[0]
+    };
   }
 
   onRegionChange = region => {
@@ -101,27 +109,37 @@ export default class App extends React.Component {
   }
 
   loadClusters = () => {
-    this.clusters = supercluster({
+    const clusters = supercluster({
       radius: 40,
       maxZoom: 16
     });
-    this.clusters.load(this.getPoints());
+    clusters.load(this.getPoints());
+    this.setState({ clusters });
   }
 
-  getMarkers() {
+  getMarkers = () => {
+    console.log('#getMarkers');
     const { latitude, longitude, latitudeDelta, longitudeDelta } = this.state.region;
-    if (!this.clusters) return [];
-    const result = this.clusters.getClusters(
-      [longitude - longitudeDelta, latitude - latitudeDelta, longitude + longitudeDelta, latitude + latitudeDelta],
+    if (!this.state.clusters) return [];
+    const bbox = [longitude - longitudeDelta, latitude - latitudeDelta, longitude + longitudeDelta, latitude + latitudeDelta];
+    const result = this.state.clusters.getClusters(
+      bbox,
       this.getZoom()
     );
-    console.log(this.getZoom());
     console.log(result);
     return result;
   }
 
   getPoints() {
-    return this.state.entries.map(entry => [entry.coordinates.latitude, entry.coordinates.longitude]);
+    const points = this.state.entries.map(entry => {
+      return {
+        geometry: {
+          type: 'Point',
+          coordinates: [entry.coordinates.longitude, entry.coordinates.latitude]
+        }
+      };
+    });
+    return points;
   }
 
   getZoom = () => {
@@ -129,7 +147,6 @@ export default class App extends React.Component {
   }
 
   componentDidMount() {
-    console.log('mounted')
     this.setState({ region:
       {
         latitude: 39.952,
