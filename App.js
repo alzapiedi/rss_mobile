@@ -10,7 +10,7 @@ import supercluster from 'supercluster';
 import debounce from 'lodash.debounce';
 
 const { height, width } = Dimensions.get('window');
-const API_BASE_URL='http://108.4.212.129:4000';
+const API_BASE_URL='http://172.16.94.71:4000';
 const PULLOUT_HEIGHT = height * 0.5;
 const PULLOUT_DELTA = PULLOUT_HEIGHT / 10;
 
@@ -30,17 +30,17 @@ export default class App extends React.Component {
   }
 
   render() {
-    console.log('#render')
     return (
       <View style={{ flex: 1 }}>
         <View style={{ backgroundColor: '#faebd7', height: Constants.statusBarHeight }} />
-        <Map
-          ref={element => this.mapView = element}
+        <MapView
           onPress={this.handlePressMap}
+          style={{ flex: 1 }}
+          provider="google"
           region={this.state.region}
-          onRegionChange={this.onRegionChange}
-          renderMarker={this.renderMapMarker}
-          markers={this.getMarkers()} />
+          onRegionChange={this.onRegionChange}>
+            {this.getPointsAndClusters().map(this.renderMapMarker)}
+          </MapView>
         <View style={{ flex: 1, position: 'absolute', height: PULLOUT_HEIGHT, width, backgroundColor: '#fff', top: this.state.pulloutTop, flexDirection: 'column', borderTopColor: 'black', borderTopWidth: 1 }}>
           <FlatList data={this.state.selectedEntries} renderItem={this.renderEntry} />
           <View style={{ height: 50, backgroundColor: '#dcd8ef', alignItems: 'center', justifyContent: 'center' }}>
@@ -51,17 +51,38 @@ export default class App extends React.Component {
     );
   }
 
-  renderMapMarker = entry => {
+  renderMapMarker = data => {
     return (
-      <MapView.Marker key={String(Math.random())} centerOffset={{x: 0, y: -20}} coordinate={this.coordinateArrayToObject(entry.geometry.coordinates)} onPress={this.handlePressMapMarker.bind(this, entry)}>
-        <View style={{ flex: 1, flexDirection: 'column' }}>
-          <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 15, height: 40, width: 40, justifyContent: 'center', alignItems: 'center', shadowOffset: {  width: 2,  height: 2 }, shadowColor: '#000', shadowOpacity: 1.0, }}>
-            <Text fontSize={20}><Emoji name="chocolate_bar" /></Text>
-          </View>
-          <View style={{ flex: 1, backgroundColor: 'transparent', width: 0, height: 0, alignSelf:'center', borderStyle: 'solid', borderTopColor: '#fff', borderTopWidth:10, borderLeftWidth:5, borderLeftColor: 'transparent', borderRightWidth:5, borderRightColor: 'transparent' }} />
-        </View>
+      <MapView.Marker key={String(Math.random())} centerOffset={{x: 0, y: -20}} coordinate={this.coordinateArrayToObject(data.geometry.coordinates)} onPress={this.handlePressMapMarker.bind(this, data)}>
+        {data.cluster ? this.renderCluster(data) : this.renderPoint(data)}
       </MapView.Marker>
     );
+  }
+
+  renderPoint(point) {
+    return (
+      <View style={{ flex: 1, flexDirection: 'column', width: 45 }}>
+        <View style={styles.emojiCircle}>
+          <Text fontSize={20}><Emoji name="chocolate_bar" /></Text>
+        </View>
+        <View style={{ flex: 1, backgroundColor: 'transparent', width: 0, height: 0, alignSelf:'center', borderStyle: 'solid', borderTopColor: '#fff', borderTopWidth:10, borderLeftWidth:5, borderLeftColor: 'transparent', borderRightWidth:5, borderRightColor: 'transparent' }} />
+      </View>
+    );
+  }
+
+  renderCluster(cluster) {
+    return (
+      <View style={{ flex: 1, flexDirection: 'column', width: 45 }}>
+        <View style={styles.emojiCircle}>
+          <Text fontSize={20}><Emoji name="chocolate_bar" /></Text>
+        </View>
+        <View style={{ flex: 1, backgroundColor: 'transparent', width: 0, height: 0, alignSelf:'center', borderStyle: 'solid', borderTopColor: '#fff', borderTopWidth:10, borderLeftWidth:5, borderLeftColor: 'transparent', borderRightWidth:5, borderRightColor: 'transparent' }} />
+      </View>
+    );
+  }
+
+  renderMapCluster = cluster => {
+    <MapView.Marker />
   }
 
   renderEntry = entry => {
@@ -115,10 +136,10 @@ export default class App extends React.Component {
     });
     clusters.load(this.getPoints());
     this.setState({ clusters });
+    this.forceUpdate();
   }
 
-  getMarkers = () => {
-    console.log('#getMarkers');
+  getPointsAndClusters = () => {
     const { latitude, longitude, latitudeDelta, longitudeDelta } = this.state.region;
     if (!this.state.clusters) return [];
     const bbox = [longitude - longitudeDelta, latitude - latitudeDelta, longitude + longitudeDelta, latitude + latitudeDelta];
@@ -133,6 +154,7 @@ export default class App extends React.Component {
   getPoints() {
     const points = this.state.entries.map(entry => {
       return {
+        entry,
         geometry: {
           type: 'Point',
           coordinates: [entry.coordinates.longitude, entry.coordinates.latitude]
@@ -205,4 +227,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  emojiCircle: { flex: 1, borderStyle: 'solid', backgroundColor: '#fff', borderRadius: 16, height: 40, width: 40, justifyContent: 'center', alignItems: 'center', shadowRadius: 0, shadowOffset: {  width: 2,  height: 2 }, shadowColor: '#000', shadowOpacity: 0.45 }
 });
